@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>WebSocket Demo</title>
+        <style>
+            #connectBtn, #sendBtn, #msgLists, textarea, input{
+                display: block;
+                margin: 8px;
+            }
+            .msgInput{
+                margin: 12px 0px;
+                border: 0.1px solid #FFF;
+            }
+            #msgLists{
+                width: 500px;
+                height: 300px;
+                border: 1px solid #585555;
+                border-radius: 4px;
+                padding: 8px;
+                box-sizing: border-box;
+                overflow-y: scroll;
+                /* text-overflow: ellipsis;
+                white-space: nowrap; */
+            }
+            .msgList{
+                height: 36px;
+                font-size: 14px;
+                color: #717171;
+                line-height: 36px;
+            }
+        
+        </style>
+    </head>
+    <body>
+        <button type="button" id="connectBtn" onclick="connectFun()">开始连接</button>
+
+        <div class="msgInput">
+            <textarea id="msgText" placeholder="请输入消息文本"></textarea>
+            <input id="msgFile" type="file"/>
+        </div>
+        
+        <button type="button" id="sendBtn" onclick="sendMsg()">发送消息</button>
+        <div id="msgLists"></div>
+    </body>
+    <script>
+        //WebSocket对象
+        let socket = null
+        //对应 socket.readyState 状态值
+        let btnText = {
+            0: '正在连接中...', //正在连接中
+            1: '关闭连接', //已经链接并且可以通讯
+            2: '连接正在关闭...', //连接正在关闭
+            3: '开始连接', //连接已关闭或者没有链接成功
+        }
+        const btn = document.getElementById('connectBtn')
+        const msgLists = document.getElementById('msgLists')
+        
+        /*------------------------------ DOM操作 ----------------------------*/
+        //连接按钮点击
+        function connectFun() {
+            console.log('click connect button')
+            if(!socket || socket.readyState === 3) {
+                connect()
+            } else if (socket && socket.readyState === 1) {
+                close()
+            }
+        }
+        //发送按钮点击
+        function sendMsg() {
+            console.log('click send button')
+            //文本
+            const msgText = document.getElementById('msgText').value
+            console.log('msg is: ', msgText)
+            msgText && send(msgText)
+
+            //blob
+            const file = document.getElementById('msgFile').files[0]
+            console.log('file msg is: ', file)
+            file && send(file)
+
+            //arraybuffer
+            const arrBuffer = new ArrayBuffer(27)
+            console.log('arrBuffer msg is: ', arrBuffer)
+            arrBuffer && send(arrBuffer)
+            
+        }
+
+        //设置按钮文本（状态切换）
+        function _setBtnText(){
+            btn.innerText = btnText[(socket ? socket.readyState : 3)]
+        }
+        //消息展示
+        function _addMsg(msg){
+            const listItem = document.createElement('div')
+            listItem.className = 'msgList'
+            listItem.innerHTML = msg
+            msgLists.appendChild(listItem)
+        }
+
+        /*------------------------------ WebSocket ----------------------------*/
+        //连接
+        function connect(){
+            if(socket && socket.readyState !== 3) {
+                console.warn('client can\'t connect because of connection is ', socket ? socket.readyState : null)
+                return false;
+            }
+            console.log('client start socket connect...')
+            //请求连接建立
+            socket  = new WebSocket('ws://localhost:8080')
+
+            _setBtnText()
+
+            //监听 - 连接已建立
+            socket.addEventListener('open', (event) => {
+                console.log('client connect open', socket)
+                _setBtnText()
+                _addMsg(`<span style='font-weight: bold;color: #ff8e00;'>~ 连接已建立，现在开始通信吧 ~</span>`)
+            })
+            //监听 - 出现错误
+            socket.addEventListener('error', (event) => {
+                console.error('client connect error: ', event)
+                _setBtnText()
+                _addMsg(`<span style='font-weight: bold;color: #ff2300;'>~ 连接异常 ~</span>`)
+            })
+            //监听 - 连接关闭
+            socket.addEventListener('close', (event) => {
+                console.warn('client connect closed: ', event)
+                _setBtnText()
+                _addMsg(`<span style='font-weight: bold;color: #ff8e00;'>~ 通信结束，连接已关闭 ~</span>`)
+            })
+            //接收监听
+            receive()
+        }
+        //发送消息
+        function send(msg) {
+            if(!socket || socket.readyState !== 1) {
+                console.warn('client can\'t send msg because of socket connect is ', socket ? socket.readyState : null)
+                return false;
+            }
+            console.log(typeof msg)
+            console.log(msg instanceof Blob)
+            console.log(msg instanceof ArrayBuffer)
+            // if(msg instanceof Blob) {
+            //     socket.binaryType = 'blob'
+            // } else if(msg instanceof ArrayBuffer){
+            //     socket.binaryType = 'arraybuffer'
+            // }
+            socket.send(msg)
+            _addMsg('> Client: ' + msg)
+        }
+        //接收消息
+        function receive() {
+            if(!socket) {
+                console.warn('client can\'t add message listener because of socket is null')
+                return false;
+            }
+            //监听 - 收到数据
+            socket.addEventListener('message', (event) => {
+                console.log('client receive message: ', event)
+                const msg = event.data
+                _addMsg('> Server: ' + msg)
+            })
+        }
+        //断开连接
+        function close() {
+            if(!socket || socket.readyState !== 1) {
+                console.log('client socket connect is ', socket ? socket.readyState : null)
+                return false;
+            }
+            //主动关闭连接
+            socket.close()
+            socket = null
+            console.log('client stop socket connect')
+        }
+    </script>
+</html>
